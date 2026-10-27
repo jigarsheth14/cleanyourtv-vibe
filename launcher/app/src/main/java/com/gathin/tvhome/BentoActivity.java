@@ -222,7 +222,7 @@ public class BentoActivity extends Activity {
 
     private View forYouCard() {
         GlassCard c = new GlassCard(true, LinearLayout.VERTICAL);
-        c.addView(G.tv(this, "For you  \u00B7  from your swipes", p(14), 0xCCFFFFFF, false));
+        c.addView(G.tv(this, "For you  \u00B7  OK to swipe and rate", p(14), 0xCCFFFFFF, false));
         posters = row();
         LinearLayout.LayoutParams pl = lp(MATCH, 0, 1f, 0);
         pl.topMargin = p(8);
