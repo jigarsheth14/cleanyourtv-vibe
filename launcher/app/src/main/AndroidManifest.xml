@@ -88,11 +88,6 @@
             android:clearTaskOnLaunch="true"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode"
             android:screenOrientation="landscape">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
             <!-- Listed in the TV's own app list, so it can be opened from the stock home screen too. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -254,5 +249,15 @@
         <category android:name="android.intent.category.DEFAULT" />
     </intent-filter>
 </activity>
+            <activity android:name=".GamesActivity" android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+        <service android:name=".GlassDream" android:label="@string/dream_name" android:exported="true"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

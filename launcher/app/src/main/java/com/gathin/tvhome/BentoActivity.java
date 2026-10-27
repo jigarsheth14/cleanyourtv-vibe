@@ -40,10 +40,17 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import org.json.JSONObject;
+import java.util.ArrayList;
+import java.util.List;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import org.json.JSONObject;
 
 /** Bento home, step 2: baked-blur liquid glass over a detailed background. */
 public class BentoActivity extends Activity {
-    private static final String NAME = "Dipika"; // change to the name you want in the greeting
+    private static final String NAME = Subs.NAME; // edit the name in Subs.java
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
 
@@ -54,6 +61,7 @@ public class BentoActivity extends Activity {
     private TextView greeting, time, ampm, date, temp, cond;
     private String scene = "clear_night";
     private final List<View> glassViews = new ArrayList<>();
+    private LinearLayout renewList;
 
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -85,7 +93,7 @@ public class BentoActivity extends Activity {
         top.addView(right, lp(0, MATCH, 7f, 0));
         LinearLayout row1 = row();
         right.addView(row1, lp(MATCH, 0, 1.15f, 0));
-        row1.addView(forYouCard(), lp(0, MATCH, 2f, 8));
+        row1.addView(renewsCard(), lp(0, MATCH, 2f, 8));
         row1.addView(swipeCard(), lp(0, MATCH, 1f, 8));
         LinearLayout row2 = row();
         right.addView(row2, lp(MATCH, 0, 1f, 0));
@@ -110,6 +118,7 @@ public class BentoActivity extends Activity {
         updateClock();
         first.requestFocus();
         fetchWeather();
+        fetchWeather();
     }
 
     @Override protected void onResume() { super.onResume(); handler.post(tick); }
@@ -126,6 +135,7 @@ public class BentoActivity extends Activity {
         time.setText(new SimpleDateFormat("h:mm", Locale.ENGLISH).format(now));
         ampm.setText(new SimpleDateFormat("a", Locale.ENGLISH).format(now));
         date.setText(new SimpleDateFormat("EEEE, d MMMM", Locale.ENGLISH).format(now));
+        updateRenews();
     }
 
     // ---- background: detailed picture plus a pre-blurred copy for the glass ----
@@ -160,6 +170,8 @@ public class BentoActivity extends Activity {
         }
         if (scene.equals("snow")) { pt.setColor(0xDDFFFFFF); for (int i = 0; i < 120; i++) c.drawCircle(r.nextInt(w), r.nextInt(h), 1 + r.nextInt(3), pt); }
         if (scene.equals("clear_night")) { pt.setColor(0xFFFFFFFF); for (int i = 0; i < 80; i++) c.drawCircle(r.nextInt(w), r.nextInt(h / 2), 1, pt); }
+        if (scene.equals("snow")) { pt.setColor(0xDDFFFFFF); for (int i = 0; i < 120; i++) c.drawCircle(r.nextInt(w), r.nextInt(h), 1 + r.nextInt(3), pt); }
+        if (scene.equals("clear_night")) { pt.setColor(0xFFFFFFFF); for (int i = 0; i < 80; i++) c.drawCircle(r.nextInt(w), r.nextInt(h / 2), 1, pt); }
         Bitmap s1 = Bitmap.createScaledBitmap(sharp, 120, 68, true);
         Bitmap s2 = Bitmap.createScaledBitmap(s1, 30, 17, true);
         Bitmap s3 = Bitmap.createScaledBitmap(s2, 120, 68, true);
@@ -178,6 +190,87 @@ public class BentoActivity extends Activity {
             c.drawBitmap(sharp, src, dst, paint);
             c.drawColor(scene.equals("clear_day") || scene.equals("snow") || scene.equals("fog") ? 0x66000000 : 0x30000000);
         }
+    }
+
+    @Override protected void onDestroy() { super.onDestroy(); handler.removeCallbacksAndMessages(null); }
+
+    private String defaultScene() {
+        int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        return (h >= 6 && h < 18) ? "clear_day" : "clear_night";
+    }
+
+    private int[] palette() {
+        switch (scene) {
+            case "clear_day": return new int[]{0xFF2E8BE6, 0xFF74B9FF, 0xFFBFE3FF};
+            case "cloud": return new int[]{0xFF4B5563, 0xFF6B7280, 0xFF9CA3AF};
+            case "rain": return new int[]{0xFF1F2A3A, 0xFF2F4358, 0xFF4A6075};
+            case "snow": return new int[]{0xFF8FA3B8, 0xFFC9D6E3, 0xFFEAF1F8};
+            case "storm": return new int[]{0xFF111827, 0xFF1F2937, 0xFF3B2F5A};
+            case "fog": return new int[]{0xFF6B7280, 0xFF9CA3AF, 0xFFD1D5DB};
+            default: return new int[]{0xFF0B1230, 0xFF1B2A6B, 0xFF3A2A66};
+        }
+    }
+
+    private String get(String u) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
+        c.setConnectTimeout(8000);
+        c.setReadTimeout(8000);
+        BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
+        StringBuilder sb = new StringBuilder();
+        String l;
+        while ((l = r.readLine()) != null) sb.append(l);
+        r.close();
+        c.disconnect();
+        return sb.toString();
+    }
+
+    /** Place from the TV's IP (ipwho.is), weather from Open-Meteo; repeats every 20 minutes. */
+    private void fetchWeather() {
+        new Thread(() -> {
+            try {
+                JSONObject loc = new JSONObject(get("https://ipwho.is/"));
+                double lat = loc.getDouble("latitude"), lon = loc.getDouble("longitude");
+                final String city = loc.optString("city", "");
+                JSONObject w = new JSONObject(get("https://api.open-meteo.com/v1/forecast?latitude=" + lat
+                        + "&longitude=" + lon + "&current=temperature_2m,weather_code,is_day&timezone=auto"));
+                JSONObject cur = w.getJSONObject("current");
+                final int tmp = (int) Math.round(cur.getDouble("temperature_2m"));
+                final int code = cur.getInt("weather_code");
+                final boolean day = cur.getInt("is_day") == 1;
+                runOnUiThread(() -> applyWeather(tmp, code, day, city));
+            } catch (Exception e) {
+                runOnUiThread(() -> cond.setText("Weather unavailable"));
+            }
+        }).start();
+        handler.postDelayed(this::fetchWeather, 20 * 60 * 1000L);
+    }
+
+    private String describe(int c) {
+        if (c == 0) return "Clear";
+        if (c == 1) return "Mostly clear";
+        if (c == 2) return "Partly cloudy";
+        if (c == 3) return "Cloudy";
+        if (c == 45 || c == 48) return "Fog";
+        if (c >= 51 && c <= 57) return "Drizzle";
+        if (c >= 61 && c <= 67) return "Rain";
+        if (c >= 71 && c <= 77) return "Snow";
+        if (c >= 80 && c <= 82) return "Showers";
+        if (c == 85 || c == 86) return "Snow showers";
+        if (c >= 95) return "Thunderstorm";
+        return "Weather";
+    }
+
+    private void applyWeather(int tmp, int code, boolean day, String city) {
+        temp.setText(tmp + "\u00B0");
+        cond.setText(describe(code) + (city.isEmpty() ? "" : " \u00B7 " + city));
+        if (code <= 1) scene = day ? "clear_day" : "clear_night";
+        else if (code <= 3) scene = "cloud";
+        else if (code == 45 || code == 48) scene = "fog";
+        else if ((code >= 71 && code <= 77) || code == 85 || code == 86) scene = "snow";
+        else if (code >= 95) scene = "storm";
+        else scene = "rain";
+        buildBackground();
+        for (View v : glassViews) v.invalidate();
     }
 
     @Override protected void onDestroy() { super.onDestroy(); handler.removeCallbacksAndMessages(null); }
@@ -290,25 +383,41 @@ public class BentoActivity extends Activity {
         return c;
     }
 
-    private View forYouCard() {
+    private View renewsCard() {
         GlassCard c = new GlassCard(true, LinearLayout.VERTICAL);
-        c.addView(text("For you", p(14), 0xCCFFFFFF, false));
-        LinearLayout posters = row();
-        int[][] cols = {
-                {0xFF3A6EA5, 0xFF1B2A49}, {0xFFB5651D, 0xFF4A2511},
-                {0xFF2E8B57, 0xFF11331F}, {0xFF8E44AD, 0xFF2C1338}};
-        for (int[] cc : cols) {
-            View v = new View(this);
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, cc);
-            g.setCornerRadius(p(10));
-            v.setBackground(g);
-            posters.addView(v, lp(0, MATCH, 1f, 4));
-        }
-        LinearLayout.LayoutParams pl = lp(MATCH, 0, 1f, 0);
-        pl.topMargin = p(8);
-        c.addView(posters, pl);
-        soon(c, "For you: real posters arrive in step 6");
+        c.addView(text("RENEWS IN", p(12), 0xCCFFFFFF, true));
+        renewList = column();
+        LinearLayout.LayoutParams rl = lp(MATCH, 0, 1f, 0);
+        rl.topMargin = p(6);
+        c.addView(renewList, rl);
         return c;
+    }
+
+    /** Rebuilds the next few renewals; runs with the clock tick so the days left stay right. */
+    private void updateRenews() {
+        if (renewList == null) return;
+        renewList.removeAllViews();
+        List<Subs.Item> items = Subs.upcoming();
+        int n = Math.min(3, items.size());
+        for (int i = 0; i < n; i++) {
+            Subs.Item it = items.get(i);
+            LinearLayout r = row();
+            r.setGravity(Gravity.CENTER_VERTICAL);
+            View dot = new View(this);
+            GradientDrawable dg = new GradientDrawable();
+            dg.setShape(GradientDrawable.OVAL);
+            dg.setColor(it.color);
+            dot.setBackground(dg);
+            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(p(10), p(10));
+            dl.rightMargin = p(10);
+            r.addView(dot, dl);
+            LinearLayout names = column();
+            names.addView(text(it.name, p(15), Color.WHITE, true));
+            names.addView(text(it.sub, p(11), 0x99FFFFFF, false));
+            r.addView(names, lp(0, WRAP, 1f, 0));
+            r.addView(text(it.label, p(15), Color.WHITE, true));
+            renewList.addView(r, lp(MATCH, 0, 1f, 0));
+        }
     }
 
     private View swipeCard() {
@@ -326,7 +435,7 @@ public class BentoActivity extends Activity {
         c.addView(text("ARCADE", p(12), 0xCCFFFFFF, true));
         c.addView(text("Play", p(26), Color.WHITE, true));
         c.addView(text("2 games", p(14), 0xCCFFFFFF, false));
-        soon(c, "Games arrive in step 5");
+        c.setOnClickListener(x -> startActivity(new Intent(this, GamesActivity.class)));
         return c;
     }
 
@@ -446,6 +555,7 @@ public class BentoActivity extends Activity {
             setWillNotDraw(false);
             setPadding(p(16), p(14), p(16), p(14));
             rim.setStyle(Paint.Style.STROKE);
+            glassViews.add(this);
             glassViews.add(this);
             if (focusable) {
                 setFocusable(true);
