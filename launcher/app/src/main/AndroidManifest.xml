@@ -88,6 +88,11 @@
             android:clearTaskOnLaunch="true"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode"
             android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <!-- Listed in the TV's own app list, so it can be opened from the stock home screen too. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -241,23 +246,27 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/input_key_service" />
         </service>
-<activity android:name=".BentoActivity" android:exported="true" android:launchMode="singleTask"
-    android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
-    <intent-filter>
-        <action android:name="android.intent.action.MAIN" />
-        <category android:name="android.intent.category.HOME" />
-        <category android:name="android.intent.category.DEFAULT" />
-    </intent-filter>
-</activity>
-            <activity android:name=".GamesActivity" android:exported="false"
-            android:screenOrientation="landscape"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
-        <service android:name=".GlassDream" android:label="@string/dream_name" android:exported="true"
+    <!-- BENTO-BEGIN -->
+        <activity android:name=".BentoActivity" android:exported="true" android:launchMode="singleTask"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".SwipeActivity" android:exported="false" android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+        <activity android:name=".GamesActivity" android:exported="false" android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+        <activity android:name=".SnakeActivity" android:exported="false" android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+        <activity android:name=".Game2048Activity" android:exported="false" android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+        <activity android:name=".SubsActivity" android:exported="false" android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+        <service android:name=".ScreensaverDream" android:exported="true" android:label="Bento"
             android:permission="android.permission.BIND_DREAM_SERVICE">
             <intent-filter>
                 <action android:name="android.service.dreams.DreamService" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </service>
+        <!-- BENTO-END -->
     </application>
 </manifest>
