@@ -140,7 +140,7 @@ public class BentoActivity extends Activity {
         refreshForYou();
         handler.post(clockTick);
         handler.post(weatherTick);
-        handler.post(animTick); resetIdle(); if (dockRow != null && !dockSig.equals(Dock.raw(this))) buildDock();
+        handler.post(animTick); Photos.sync(this, () -> rebuild()); resetIdle(); if (dockRow != null && !dockSig.equals(Dock.raw(this))) buildDock();
     }
 
     @Override protected void onPause() {
@@ -216,7 +216,7 @@ public class BentoActivity extends Activity {
     }
 
     private void rebuild() {
-        sharp = Bg.sharp(scene, 480, 270);
+        Bitmap ph = Photos.pick(this); sharp = ph != null ? Photos.compose(ph, scene, 1280, 720) : Bg.sharp(scene, 480, 270);
         blurred = Bg.blur(sharp);
         for (View v : glass) v.invalidate();
     }
@@ -231,7 +231,9 @@ public class BentoActivity extends Activity {
         }
     }
 
+    private int lastSlot = -2;
     private void updateClock() {
+        int sl = Photos.slot(); if (sl != lastSlot) { lastSlot = sl; if (sharp != null) rebuild(); }
         Date now = new Date();
         greeting.setText(G.greet());
         time.setText(new SimpleDateFormat("h:mm", Locale.ENGLISH).format(now));
