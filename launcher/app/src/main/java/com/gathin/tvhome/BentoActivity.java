@@ -315,16 +315,31 @@ public class BentoActivity extends Activity {
         return c;
     }
 
-    private TextView poster(String[] t) {
-        TextView v = G.tv(this, t[0], p(12), Color.WHITE, true);
+    private View poster(final String[] t) {
+        final FrameLayout f = new FrameLayout(this);
         float hue = Math.abs(t[0].hashCode()) % 360;
         GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{
                 Color.HSVToColor(new float[]{hue, 0.55f, 0.75f}), Color.HSVToColor(new float[]{hue, 0.7f, 0.3f})});
         g.setCornerRadius(p(10));
-        v.setBackground(g);
-        v.setGravity(Gravity.BOTTOM);
-        v.setPadding(p(6), p(6), p(6), p(8));
-        return v;
+        f.setBackground(g);
+        f.setClipToOutline(true);
+        f.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override public void getOutline(View v, android.graphics.Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), p(10)); }
+        });
+        final TextView name = G.tv(this, t[0], p(12), Color.WHITE, true);
+        name.setGravity(Gravity.BOTTOM);
+        name.setPadding(p(6), p(6), p(6), p(8));
+        f.addView(name, new FrameLayout.LayoutParams(MATCH, MATCH));
+        final android.widget.ImageView iv = new android.widget.ImageView(this);
+        iv.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        iv.setVisibility(View.GONE);
+        f.addView(iv, new FrameLayout.LayoutParams(MATCH, MATCH));
+        Posters.load(this, t[0], bm -> {
+            iv.setImageBitmap(bm);
+            iv.setVisibility(View.VISIBLE);
+            name.setVisibility(View.GONE);
+        });
+        return f;
     }
 
     private View swipeCard() {
