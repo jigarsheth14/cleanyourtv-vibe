@@ -242,7 +242,7 @@ public class ScreensaverDream extends DreamService {
                     Subs.Item it = subs.get(i);
                     float y = ct + 0.06f * h + i * rowH;
                     t.setColor(dots[i % 4]);
-                    Icons.draw(getContext(), c, it.name, cl + 0.012f * w, y + 0.006f * h, 0.054f * h);
+                    Icons.draw(getContext(), c, it.name, cl + 0.012f * w, y + 0.011f * h, 0.052f * h);
                     t.setTextAlign(Paint.Align.LEFT);
                     t.setColor(Color.WHITE);
                     t.setTextSize(0.026f * h);

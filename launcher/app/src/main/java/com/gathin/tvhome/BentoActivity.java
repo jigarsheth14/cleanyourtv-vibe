@@ -54,7 +54,7 @@ public class BentoActivity extends Activity {
     private TextView greeting, time, ampm, date, temp, cond, swipeCount, mumbai, perth;
     private LinearLayout posters;
     private View orb;
-    private SynthView synth;
+    private SynthView synth; private View homeCard;
     private WaveView wave;
     private float phase;
 
@@ -111,7 +111,7 @@ public class BentoActivity extends Activity {
 
         LinearLayout top = row();
         page.addView(top, lp(MATCH, 0, 2.1f, 0));
-        top.addView(leftCard(), lp(0, MATCH, 3f, 8));
+        homeCard = leftCard(); top.addView(homeCard, lp(0, MATCH, 3f, 8));
         LinearLayout right = col();
         top.addView(right, lp(0, MATCH, 7f, 0));
         LinearLayout row1 = row();
@@ -139,7 +139,7 @@ public class BentoActivity extends Activity {
         setContentView(root);
         updateClock();
         Wx.cached(this, (t, code, day, city, sr) -> applyWeather(t, code, day, city));
-        first.requestFocus();
+        homeCard.requestFocus();
     }
 
     @Override protected void onResume() {
@@ -331,7 +331,7 @@ public class BentoActivity extends Activity {
 
     /** Dock tile: the app's own banner from the TV when it has one, else a coloured name tile. */
     private View appTile(String label, String pkg, int color, int textColor, View.OnClickListener click) {
-        final FrameLayout f = new FrameLayout(this);
+        final FrameLayout f = new RatioFrame(this);
         final GradientDrawable d = new GradientDrawable();
         d.setColor(0x00000000);
         d.setCornerRadius(p(15));
@@ -409,6 +409,15 @@ public class BentoActivity extends Activity {
         LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(w, h, weight);
         l.setMargins(p(margin), p(margin), p(margin), p(margin));
         return l;
+    }
+
+    private static class RatioFrame extends FrameLayout {
+        RatioFrame(android.content.Context c) { super(c); }
+        @Override protected void onMeasure(int ws, int hs) {
+            int w = MeasureSpec.getSize(ws);
+            super.onMeasure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(Math.round(w * 9f / 16f), MeasureSpec.EXACTLY));
+        }
     }
 
     // ---- custom views ----
@@ -489,7 +498,7 @@ public class BentoActivity extends Activity {
             dst.set(0, 0, getWidth(), getHeight());
             c.drawBitmap(sharp, src, dst, paint);
             boolean light = scene.equals("clear_day") || scene.equals("snow") || scene.equals("fog");
-            c.drawColor(light ? 0x66000000 : 0x30000000);
+            c.drawColor(light ? 0x2E000000 : 0x12000000);
         }
     }
 
@@ -500,7 +509,7 @@ public class BentoActivity extends Activity {
         private final Rect src = new Rect();
         private final Rect dst = new Rect();
         private final int[] loc = new int[2];
-        private final Paint bmp = new Paint(Paint.FILTER_BITMAP_FLAG);
+        private final Paint bmp = new Paint(Paint.FILTER_BITMAP_FLAG); { bmp.setAlpha(70); }
         private final Paint sheen = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint rim = new Paint(Paint.ANTI_ALIAS_FLAG);
         private boolean focusedNow;
@@ -544,7 +553,7 @@ public class BentoActivity extends Activity {
                 dst.set(0, 0, w, h);
                 c.drawBitmap(blurred, src, dst, bmp);
             }
-            c.drawColor(focusedNow ? 0x38FFFFFF : 0x22FFFFFF);
+            c.drawColor(focusedNow ? 0x26FFFFFF : 0x0CFFFFFF);
             sheen.setShader(new LinearGradient(0, 0, 0, h * 0.55f, 0x50FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
             c.drawRect(rect, sheen);
             c.restore();

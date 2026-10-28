@@ -1,4 +1,4 @@
-﻿# Windows version of build-and-install.sh: build the launcher APK and install it on the TV as the
+# Windows version of build-and-install.sh: build the launcher APK and install it on the TV as the
 # default home screen. Uses Android Studio's bundled JDK and the default SDK location unless
 # JAVA_HOME / ANDROID_HOME are set.
 #

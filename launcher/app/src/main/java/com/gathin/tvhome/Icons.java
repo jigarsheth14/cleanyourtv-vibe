@@ -13,7 +13,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/** The real app icons, taken from the apps installed on the TV. */
+/** The real app icons from the TV, drawn fully inside a rounded box. */
 final class Icons {
     private static final Map<String, Bitmap> CACHE = new HashMap<>();
     private static final Paint PAINT = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -44,33 +44,37 @@ final class Icons {
                 CACHE.put(key, b);
                 return b;
             } catch (Exception e) {
-                // not installed, try the next package name
+                // not installed, try the next name
             }
         }
         return null;
     }
 
     static void draw(Context ctx, Canvas c, String name, float x, float y, float size) {
-        RectF rf = new RectF(x, y, x + size, y + size);
-        float r = size * 0.22f;
-        Bitmap bm = get(ctx, name, Math.max(1, Math.round(size)));
+        RectF box = new RectF(x, y, x + size, y + size);
+        float r = size * 0.24f;
+        Paint f = new Paint(Paint.ANTI_ALIAS_FLAG);
+        f.setColor(0x33FFFFFF);
+        c.drawRoundRect(box, r, r, f);
+        float pad = size * 0.08f;
+        RectF in = new RectF(x + pad, y + pad, x + size - pad, y + size - pad);
+        Bitmap bm = get(ctx, name, Math.max(1, Math.round(size - 2 * pad)));
         if (bm != null) {
             Path p = new Path();
-            p.addRoundRect(rf, r, r, Path.Direction.CW);
+            p.addRoundRect(in, r * 0.8f, r * 0.8f, Path.Direction.CW);
             c.save();
             c.clipPath(p);
-            c.drawBitmap(bm, null, rf, PAINT);
+            c.drawBitmap(bm, null, in, PAINT);
             c.restore();
             return;
         }
         float hue = Math.abs(name.hashCode()) % 360;
-        Paint f = new Paint(Paint.ANTI_ALIAS_FLAG);
         f.setColor(Color.HSVToColor(new float[]{hue, 0.6f, 0.8f}));
-        c.drawRoundRect(rf, r, r, f);
+        c.drawRoundRect(in, r * 0.8f, r * 0.8f, f);
         f.setColor(Color.WHITE);
         f.setTextAlign(Paint.Align.CENTER);
         f.setFakeBoldText(true);
-        f.setTextSize(size * 0.55f);
-        c.drawText(name.substring(0, 1).toUpperCase(Locale.ENGLISH), rf.centerX(), rf.centerY() - (f.descent() + f.ascent()) / 2f, f);
+        f.setTextSize(size * 0.5f);
+        c.drawText(name.substring(0, 1).toUpperCase(Locale.ENGLISH), in.centerX(), in.centerY() - (f.descent() + f.ascent()) / 2f, f);
     }
 }
