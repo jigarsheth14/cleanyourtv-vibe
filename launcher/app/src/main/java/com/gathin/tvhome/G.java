@@ -12,7 +12,7 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 final class G {
-    static final String NAME = "Dipika";
+    static final String NAME = "Sheth Family";
     static float u(Context c) { return c.getResources().getDisplayMetrics().heightPixels / 540f; }
     static SharedPreferences sp(Context c) { return c.getSharedPreferences("bento", Context.MODE_PRIVATE); }
     static TextView tv(Context c, String s, float px, int color, boolean bold) {

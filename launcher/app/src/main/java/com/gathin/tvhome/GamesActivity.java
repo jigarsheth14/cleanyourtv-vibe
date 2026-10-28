@@ -13,7 +13,7 @@ import android.widget.TextView;
 
 public class GamesActivity extends Activity {
     private float u;
-    private TextView snake, g2048;
+    private TextView snake, g2048, runner;
 
     private int p(float v) { return Math.round(v * u); }
 
@@ -27,19 +27,22 @@ public class GamesActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER);
         row.setClipChildren(false);
+        runner = tile(0xFF8E2DE2, RunnerActivity.class);
         snake = tile(0xFF2E8B57, SnakeActivity.class);
         g2048 = tile(0xFFB5651D, Game2048Activity.class);
-        row.addView(snake, new LinearLayout.LayoutParams(p(260), p(300)));
-        row.addView(g2048, new LinearLayout.LayoutParams(p(260), p(300)));
-        ((LinearLayout.LayoutParams) snake.getLayoutParams()).setMargins(p(16), 0, p(16), 0);
-        ((LinearLayout.LayoutParams) g2048.getLayoutParams()).setMargins(p(16), 0, p(16), 0);
+        for (TextView t : new TextView[]{runner, snake, g2048}) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(p(220), p(300));
+            lp.setMargins(p(14), 0, p(14), 0);
+            row.addView(t, lp);
+        }
         root.addView(row, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
-        snake.requestFocus();
+        runner.requestFocus();
     }
 
     @Override protected void onResume() {
         super.onResume();
+        runner.setText("Neon Run\n\nBest: " + G.sp(this).getInt("runner_best", 0));
         snake.setText("Snake\n\nBest: " + G.sp(this).getInt("snake_best", 0));
         g2048.setText("2048\n\nBest: " + G.sp(this).getInt("g2048_best", 0));
     }
@@ -48,7 +51,7 @@ public class GamesActivity extends Activity {
         final GradientDrawable d = new GradientDrawable();
         d.setColor(color);
         d.setCornerRadius(p(26));
-        TextView t = G.tv(this, "", p(30), Color.WHITE, true);
+        TextView t = G.tv(this, "", p(28), Color.WHITE, true);
         t.setGravity(Gravity.CENTER);
         t.setBackground(d);
         t.setFocusable(true);

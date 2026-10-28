@@ -88,6 +88,7 @@ public class ScreensaverDream extends DreamService {
             Collections.sort(subs, (a, b) -> Subs.daysLeft(a) - Subs.daysLeft(b));
             Wx.cached(getContext(), this::weather);
             Wx.fetch(getContext(), this::weather);
+            Photos.sync(getContext(), () -> { build(); invalidate(); });
             handler.post(tick);
         }
 
@@ -117,6 +118,7 @@ public class ScreensaverDream extends DreamService {
         private void build() {
             int w = getWidth(), h = getHeight();
             if (w == 0 || h == 0) return;
+            Bitmap photoBmp = Photos.pick(getContext()); if (photoBmp != null) { bg = Photos.compose(photoBmp, scene, w, h); return; }
             bg = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(bg);
             Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);

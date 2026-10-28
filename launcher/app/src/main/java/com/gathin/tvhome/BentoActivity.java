@@ -245,6 +245,15 @@ public class BentoActivity extends Activity {
 
     private void refreshForYou() {
         SharedPreferences s = G.sp(this);
+        int left = 0;
+        for (String[] t : Titles.ALL) if (s.getInt("r_" + t[0], 0) == 0) left++;
+        swipeCount.setText(left + " to rate");
+        if (!s.contains("fy_cache")) showForYou(fallbackItems());
+        ForYou.load(this, items -> showForYou(items));
+    }
+
+    private List<ForYou.Item> fallbackItems() {
+        SharedPreferences s = G.sp(this);
         final Map<String, Integer> gs = new HashMap<>();
         List<String[]> cand = new ArrayList<>();
         for (String[] t : Titles.ALL) {
@@ -261,9 +270,18 @@ public class BentoActivity extends Activity {
             Integer y = gs.get(c[1]);
             return (y == null ? 0 : y) - (x == null ? 0 : x);
         });
+        List<ForYou.Item> out = new ArrayList<>();
+        for (String[] t : cand) {
+            ForYou.Item it = new ForYou.Item();
+            it.title = t[0];
+            out.add(it);
+        }
+        return out;
+    }
+
+    private void showForYou(List<ForYou.Item> items) {
         posters.removeAllViews();
-        for (int i = 0; i < 4 && i < cand.size(); i++) posters.addView(poster(cand.get(i)), lp(0, MATCH, 1f, 4));
-        swipeCount.setText(cand.size() + " to rate");
+        for (int i = 0; i < 4 && i < items.size(); i++) posters.addView(forYouTile(items.get(i)), lp(0, MATCH, 1f, 4));
     }
 
     // ---- cards ----
@@ -307,14 +325,68 @@ public class BentoActivity extends Activity {
     }
 
     private View forYouCard() {
-        GlassCard c = new GlassCard(true, LinearLayout.VERTICAL);
-        c.addView(G.tv(this, "For you  \u00B7  OK to swipe and rate", p(14), 0xCCFFFFFF, false));
+        GlassCard c = new GlassCard(false, LinearLayout.VERTICAL);
+        c.addView(G.tv(this, "For you  \u00B7  new on Netflix, Prime and more", p(14), 0xCCFFFFFF, false));
         posters = row();
         LinearLayout.LayoutParams pl = lp(MATCH, 0, 1f, 0);
         pl.topMargin = p(8);
         c.addView(posters, pl);
-        c.setOnClickListener(v -> startActivity(new Intent(this, SwipeActivity.class)));
         return c;
+    }
+
+    private View forYouTile(final ForYou.Item it) {
+        final FrameLayout f = new FrameLayout(this);
+        float hue = Math.abs(it.title.hashCode()) % 360;
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{
+                Color.HSVToColor(new float[]{hue, 0.55f, 0.75f}), Color.HSVToColor(new float[]{hue, 0.7f, 0.3f})});
+        g.setCornerRadius(p(10));
+        f.setBackground(g);
+        f.setClipToOutline(true);
+        f.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override public void getOutline(View v, android.graphics.Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), p(10)); }
+        });
+        final TextView name = G.tv(this, it.title, p(12), Color.WHITE, true);
+        name.setGravity(Gravity.BOTTOM);
+        name.setPadding(p(6), p(6), p(6), p(8));
+        f.addView(name, new FrameLayout.LayoutParams(MATCH, MATCH));
+        final android.widget.ImageView iv = new android.widget.ImageView(this);
+        iv.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        iv.setVisibility(View.GONE);
+        f.addView(iv, new FrameLayout.LayoutParams(MATCH, MATCH));
+        Posters.Cb cb = bm -> {
+            iv.setImageBitmap(bm);
+            iv.setVisibility(View.VISIBLE);
+            name.setVisibility(View.GONE);
+        };
+        if (it.image != null && !it.image.isEmpty()) Posters.loadUrl(this, it.image, cb); else Posters.load(this, it.title, cb);
+        if (it.platform != null) {
+            TextView badge = G.tv(this, it.platform.toUpperCase(Locale.ENGLISH), p(9), Color.WHITE, true);
+            badge.setPadding(p(5), p(2), p(5), p(2));
+            GradientDrawable bg2 = new GradientDrawable();
+            bg2.setColor(0xAA000000);
+            bg2.setCornerRadius(p(6));
+            badge.setBackground(bg2);
+            FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP | Gravity.START);
+            bl.setMargins(p(5), p(5), 0, 0);
+            f.addView(badge, bl);
+        }
+        final GradientDrawable rimD = new GradientDrawable();
+        rimD.setColor(0x00000000);
+        rimD.setCornerRadius(p(10));
+        rimD.setStroke(p(3), 0xFFFFFFFF);
+        f.setFocusable(true);
+        f.setClickable(true);
+        f.setOnClickListener(v -> {
+            if (it.pkg != null) launch(it.pkg, it.platform);
+            else Toast.makeText(this, "Rate shows in Swipe to get picks here", Toast.LENGTH_SHORT).show();
+        });
+        f.setOnFocusChangeListener((v, has) -> {
+            float s = has ? 1.07f : 1f;
+            v.animate().scaleX(s).scaleY(s).setDuration(150).start();
+            v.setTranslationZ(has ? 10 : 0);
+            f.setForeground(has ? rimD : null);
+        });
+        return f;
     }
 
     private View poster(final String[] t) {
@@ -362,7 +434,7 @@ public class BentoActivity extends Activity {
         left.setGravity(Gravity.CENTER_VERTICAL);
         left.addView(G.tv(this, "ARCADE", p(12), 0xCCFFFFFF, true));
         left.addView(G.tv(this, "Play", p(26), Color.WHITE, true));
-        left.addView(G.tv(this, "2 games", p(14), 0xCCFFFFFF, false));
+        left.addView(G.tv(this, "3 games", p(14), 0xCCFFFFFF, false));
         c.addView(left, lp(0, MATCH, 1f, 0));
         synth = new SynthView();
         synth.setClipToOutline(true);

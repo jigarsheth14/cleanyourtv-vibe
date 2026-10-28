@@ -20,7 +20,7 @@ import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Real posters: TVmaze for series, Apple's iTunes search for films. Cached on the TV. */
+/** Real posters: by title (TVmaze / iTunes) or by direct address. Saved on the TV. */
 final class Posters {
     interface Cb { void on(Bitmap b); }
 
@@ -33,69 +33,75 @@ final class Posters {
         Bitmap m = MEM.get(title);
         if (m != null) { cb.on(m); return; }
         final Handler main = new Handler(Looper.getMainLooper());
-        final File dir = new File(ctx.getCacheDir(), "posters");
-        dir.mkdirs();
-        final File f = new File(dir, Integer.toHexString(title.hashCode()) + ".jpg");
+        final File f = file(ctx, Integer.toHexString(title.hashCode()));
         new Thread(() -> {
             Bitmap b = null;
             try {
                 if (f.exists() && f.length() > 0) b = BitmapFactory.decodeFile(f.getPath());
                 if (b == null) {
                     byte[] data = find(title);
-                    if (data != null) {
-                        FileOutputStream o = new FileOutputStream(f);
-                        o.write(data);
-                        o.close();
-                        b = BitmapFactory.decodeFile(f.getPath());
-                    }
+                    if (data != null) { save(f, data); b = BitmapFactory.decodeFile(f.getPath()); }
                 }
-            } catch (Exception e) {
-                b = null;
-            }
+            } catch (Exception e) { b = null; }
             final Bitmap r = b;
-            if (r != null) {
-                MEM.put(title, r);
-                main.post(() -> cb.on(r));
-            }
+            if (r != null) { MEM.put(title, r); main.post(() -> cb.on(r)); }
         }).start();
+    }
+
+    static void loadUrl(final Context ctx, final String url, final Cb cb) {
+        Bitmap m = MEM.get(url);
+        if (m != null) { cb.on(m); return; }
+        final Handler main = new Handler(Looper.getMainLooper());
+        final File f = file(ctx, "u" + Integer.toHexString(url.hashCode()));
+        new Thread(() -> {
+            Bitmap b = null;
+            try {
+                if (f.exists() && f.length() > 0) b = BitmapFactory.decodeFile(f.getPath());
+                if (b == null) {
+                    save(f, bytes(url.replace("http://", "https://")));
+                    b = BitmapFactory.decodeFile(f.getPath());
+                }
+            } catch (Exception e) { b = null; }
+            final Bitmap r = b;
+            if (r != null) { MEM.put(url, r); main.post(() -> cb.on(r)); }
+        }).start();
+    }
+
+    private static File file(Context ctx, String name) {
+        File dir = new File(ctx.getApplicationContext().getCacheDir(), "posters");
+        dir.mkdirs();
+        return new File(dir, name + ".jpg");
+    }
+
+    private static void save(File f, byte[] data) throws Exception {
+        FileOutputStream o = new FileOutputStream(f);
+        o.write(data);
+        o.close();
     }
 
     private static byte[] find(String title) {
         String q = ALT.containsKey(title) ? ALT.get(title) : title;
-        byte[] d = null;
-        if (MOVIES.contains(title)) {
-            d = itunes(q);
-            if (d == null) d = tvmaze(q);
-        } else {
-            d = tvmaze(q);
-            if (d == null) d = itunes(q);
-        }
+        byte[] d;
+        if (MOVIES.contains(title)) { d = itunes(q); if (d == null) d = tvmaze(q); }
+        else { d = tvmaze(q); if (d == null) d = itunes(q); }
         return d;
     }
 
     private static byte[] tvmaze(String q) {
         try {
-            JSONObject o = new JSONObject(text("https://api.tvmaze.com/singlesearch/shows?q=" + URLEncoder.encode(q, "UTF-8")));
-            String u = o.getJSONObject("image").getString("medium");
-            return bytes(u.replace("http://", "https://"));
-        } catch (Exception e) {
-            return null;
-        }
+            JSONObject o = new JSONObject(new String(bytes("https://api.tvmaze.com/singlesearch/shows?q=" + URLEncoder.encode(q, "UTF-8")), "UTF-8"));
+            return bytes(o.getJSONObject("image").getString("medium").replace("http://", "https://"));
+        } catch (Exception e) { return null; }
     }
 
     private static byte[] itunes(String q) {
         try {
-            JSONObject o = new JSONObject(text("https://itunes.apple.com/search?media=movie&limit=1&term=" + URLEncoder.encode(q, "UTF-8")));
+            JSONObject o = new JSONObject(new String(bytes("https://itunes.apple.com/search?media=movie&limit=1&term=" + URLEncoder.encode(q, "UTF-8")), "UTF-8"));
             JSONArray a = o.getJSONArray("results");
             if (a.length() == 0) return null;
-            String u = a.getJSONObject(0).getString("artworkUrl100");
-            return bytes(u.replace("100x100bb", "300x450bb"));
-        } catch (Exception e) {
-            return null;
-        }
+            return bytes(a.getJSONObject(0).getString("artworkUrl100").replace("100x100bb", "300x450bb"));
+        } catch (Exception e) { return null; }
     }
-
-    private static String text(String u) throws Exception { return new String(bytes(u), "UTF-8"); }
 
     private static byte[] bytes(String u) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
