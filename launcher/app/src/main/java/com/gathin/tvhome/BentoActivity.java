@@ -1,6 +1,5 @@
 package com.gathin.tvhome;
 
-import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -9,12 +8,14 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
+import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
@@ -23,8 +24,10 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -48,10 +51,19 @@ public class BentoActivity extends Activity {
     private String scene;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<View> glass = new ArrayList<>();
-    private TextView greeting, time, ampm, date, temp, cond, swipeCount;
+    private TextView greeting, time, ampm, date, temp, cond, swipeCount, mumbai, perth;
     private LinearLayout posters;
     private View orb;
-    private ValueAnimator pulse;
+    private SynthView synth;
+    private WaveView wave;
+    private float phase;
+
+    private final ViewOutlineProvider rounded12 = new ViewOutlineProvider() {
+        @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), p(12)); }
+    };
+    private final ViewOutlineProvider rounded10 = new ViewOutlineProvider() {
+        @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), p(10)); }
+    };
 
     private final Runnable clockTick = new Runnable() {
         @Override public void run() {
@@ -64,6 +76,21 @@ public class BentoActivity extends Activity {
         @Override public void run() {
             Wx.fetch(BentoActivity.this, (t, code, day, city, sr) -> applyWeather(t, code, day, city));
             handler.postDelayed(this, 20 * 60 * 1000L);
+        }
+    };
+
+    private final Runnable animTick = new Runnable() {
+        @Override public void run() {
+            phase += 0.025f;
+            if (phase > 1f) phase -= 1f;
+            if (synth != null) { synth.phase = phase; synth.invalidate(); }
+            if (wave != null) { wave.phase = phase; wave.invalidate(); }
+            if (orb != null) {
+                float s = 1f + 0.08f * (float) Math.sin(phase * 6.2832f * 2f);
+                orb.setScaleX(s);
+                orb.setScaleY(s);
+            }
+            handler.postDelayed(this, 60);
         }
     };
 
@@ -99,28 +126,17 @@ public class BentoActivity extends Activity {
         GlassCard dock = new GlassCard(false, LinearLayout.HORIZONTAL);
         dock.setGravity(Gravity.CENTER_VERTICAL);
         page.addView(dock, lp(MATCH, 0, 0.95f, 8));
-        TextView first = tile("YouTube", 0xFFFFFFFF, 0xFFD32F2F, v -> launch("com.google.android.youtube.tv", "YouTube"));
-        dock.addView(first, lp(0, MATCH, 1f, 5));
-        dock.addView(tile("NETFLIX", 0xFFFFFFFF, 0xFFE50914, v -> launch("com.netflix.ninja", "Netflix")), lp(0, MATCH, 1f, 5));
-        dock.addView(tile("JioHotstar", 0xFF6C3DF4, Color.WHITE, v -> launch("in.startv.hotstar", "JioHotstar")), lp(0, MATCH, 1f, 5));
-        dock.addView(tile("prime video", 0xFF1A98FF, Color.WHITE, v -> launch("com.amazon.amazonvideo.livingroom", "Prime Video")), lp(0, MATCH, 1f, 5));
-        dock.addView(tile("SonyLIV", 0xFF111111, Color.WHITE, v -> launch("com.sonyliv", "SonyLIV")), lp(0, MATCH, 1f, 5));
-        dock.addView(tile("ZEE5", 0xFF2A1F4D, Color.WHITE, v -> launch("com.graymatrix.did", "ZEE5")), lp(0, MATCH, 1f, 5));
-        dock.addView(tile("Renewals", 0x44FFFFFF, Color.WHITE, v -> startActivity(new Intent(this, SubsActivity.class))), lp(0, MATCH, 1f, 5));
-        dock.addView(tile("All apps", 0x44FFFFFF, Color.WHITE, v -> startActivity(new Intent(this, MainActivity.class))), lp(0, MATCH, 1f, 5));
+        View first = appTile("YouTube", "com.google.android.youtube.tv", 0xFFFFFFFF, 0xFFD32F2F, v -> launch("com.google.android.youtube.tv", "YouTube"));
+        dock.addView(first, lp(0, MATCH, 1f, 4));
+        dock.addView(appTile("NETFLIX", "com.netflix.ninja", 0xFFFFFFFF, 0xFFE50914, v -> launch("com.netflix.ninja", "Netflix")), lp(0, MATCH, 1f, 4));
+        dock.addView(appTile("JioHotstar", "in.startv.hotstar", 0xFF6C3DF4, Color.WHITE, v -> launch("in.startv.hotstar", "JioHotstar")), lp(0, MATCH, 1f, 4));
+        dock.addView(appTile("prime video", "com.amazon.amazonvideo.livingroom", 0xFF1A98FF, Color.WHITE, v -> launch("com.amazon.amazonvideo.livingroom", "Prime Video")), lp(0, MATCH, 1f, 4));
+        dock.addView(appTile("SonyLIV", "com.sonyliv", 0xFF111111, Color.WHITE, v -> launch("com.sonyliv", "SonyLIV")), lp(0, MATCH, 1f, 4));
+        dock.addView(appTile("ZEE5", "com.graymatrix.did", 0xFF2A1F4D, Color.WHITE, v -> launch("com.graymatrix.did", "ZEE5")), lp(0, MATCH, 1f, 4));
+        dock.addView(appTile("Renewals", null, 0x55FFFFFF, Color.WHITE, v -> startActivity(new Intent(this, SubsActivity.class))), lp(0, MATCH, 1f, 4));
+        dock.addView(appTile("All apps", null, 0x55FFFFFF, Color.WHITE, v -> startActivity(new Intent(this, MainActivity.class))), lp(0, MATCH, 1f, 4));
 
         setContentView(root);
-
-        pulse = ValueAnimator.ofFloat(1f, 1.14f);
-        pulse.setDuration(1400);
-        pulse.setRepeatMode(ValueAnimator.REVERSE);
-        pulse.setRepeatCount(ValueAnimator.INFINITE);
-        pulse.addUpdateListener(a -> {
-            float s = (Float) a.getAnimatedValue();
-            orb.setScaleX(s);
-            orb.setScaleY(s);
-        });
-
         updateClock();
         Wx.cached(this, (t, code, day, city, sr) -> applyWeather(t, code, day, city));
         first.requestFocus();
@@ -131,13 +147,12 @@ public class BentoActivity extends Activity {
         refreshForYou();
         handler.post(clockTick);
         handler.post(weatherTick);
-        if (!pulse.isStarted()) pulse.start();
+        handler.post(animTick);
     }
 
     @Override protected void onPause() {
         super.onPause();
         handler.removeCallbacksAndMessages(null);
-        pulse.cancel();
     }
 
     @Override public void onBackPressed() { }
@@ -164,6 +179,8 @@ public class BentoActivity extends Activity {
         time.setText(new SimpleDateFormat("h:mm", Locale.ENGLISH).format(now));
         ampm.setText(new SimpleDateFormat("a", Locale.ENGLISH).format(now));
         date.setText(new SimpleDateFormat("EEEE, d MMMM", Locale.ENGLISH).format(now));
+        mumbai.setText("Mumbai  " + G.zoneTime("Asia/Kolkata"));
+        perth.setText("Perth  " + G.zoneTime("Australia/Perth"));
     }
 
     private void refreshForYou() {
@@ -198,7 +215,7 @@ public class BentoActivity extends Activity {
         c.addView(greeting);
         LinearLayout tr = row();
         tr.setGravity(Gravity.BOTTOM);
-        time = G.tv(this, "", p(66), Color.WHITE, true);
+        time = G.tv(this, "", p(64), Color.WHITE, true);
         ampm = G.tv(this, "", p(18), 0xCCFFFFFF, false);
         ampm.setPadding(p(6), 0, 0, p(10));
         tr.addView(time);
@@ -209,11 +226,20 @@ public class BentoActivity extends Activity {
         View div = new View(this);
         div.setBackgroundColor(0x33FFFFFF);
         LinearLayout.LayoutParams dl = lp(MATCH, 1, 0f, 0);
-        dl.topMargin = p(14);
-        dl.bottomMargin = p(14);
+        dl.topMargin = p(12);
+        dl.bottomMargin = p(12);
         c.addView(div, dl);
+        LinearLayout tw = row();
+        tw.setGravity(Gravity.CENTER_VERTICAL);
         temp = G.tv(this, "--\u00B0", p(40), Color.WHITE, true);
-        c.addView(temp);
+        tw.addView(temp, lp(0, WRAP, 1f, 0));
+        LinearLayout wr = col();
+        mumbai = G.tv(this, "", p(13), Color.WHITE, true);
+        perth = G.tv(this, "", p(13), Color.WHITE, true);
+        wr.addView(mumbai);
+        wr.addView(perth);
+        tw.addView(wr, lp(WRAP, WRAP, 0f, 0));
+        c.addView(tw);
         cond = G.tv(this, "Finding weather...", p(14), 0xCCFFFFFF, false);
         c.addView(cond);
         c.setOnClickListener(v -> Wx.fetch(this, (t, code, day, city, sr) -> applyWeather(t, code, day, city)));
@@ -255,11 +281,18 @@ public class BentoActivity extends Activity {
     }
 
     private View arcadeCard() {
-        GlassCard c = new GlassCard(true, LinearLayout.VERTICAL);
+        GlassCard c = new GlassCard(true, LinearLayout.HORIZONTAL);
         c.setGravity(Gravity.CENTER_VERTICAL);
-        c.addView(G.tv(this, "ARCADE", p(12), 0xCCFFFFFF, true));
-        c.addView(G.tv(this, "Play", p(26), Color.WHITE, true));
-        c.addView(G.tv(this, "2 games", p(14), 0xCCFFFFFF, false));
+        LinearLayout left = col();
+        left.setGravity(Gravity.CENTER_VERTICAL);
+        left.addView(G.tv(this, "ARCADE", p(12), 0xCCFFFFFF, true));
+        left.addView(G.tv(this, "Play", p(26), Color.WHITE, true));
+        left.addView(G.tv(this, "2 games", p(14), 0xCCFFFFFF, false));
+        c.addView(left, lp(0, MATCH, 1f, 0));
+        synth = new SynthView();
+        synth.setClipToOutline(true);
+        synth.setOutlineProvider(rounded10);
+        c.addView(synth, lp(0, MATCH, 1.1f, 0));
         c.setOnClickListener(v -> startActivity(new Intent(this, GamesActivity.class)));
         return c;
     }
@@ -270,6 +303,10 @@ public class BentoActivity extends Activity {
         LinearLayout left = col();
         left.addView(G.tv(this, "JARVIS", p(12), 0xCCFFFFFF, true));
         left.addView(G.tv(this, "Just ask.", p(24), Color.WHITE, true));
+        wave = new WaveView();
+        LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(p(110), p(22));
+        wl.topMargin = p(8);
+        left.addView(wave, wl);
         c.addView(left, lp(0, WRAP, 1f, 0));
         orb = new View(this);
         GradientDrawable og = new GradientDrawable();
@@ -292,26 +329,49 @@ public class BentoActivity extends Activity {
         return c;
     }
 
-    private TextView tile(String label, int color, int textColor, View.OnClickListener click) {
+    /** Dock tile: the app's own banner from the TV when it has one, else a coloured name tile. */
+    private View appTile(String label, String pkg, int color, int textColor, View.OnClickListener click) {
+        final FrameLayout f = new FrameLayout(this);
         final GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(p(14));
-        TextView t = new TextView(this);
-        t.setBackground(d);
-        t.setText(label);
-        t.setTextColor(textColor);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_PX, p(16));
-        t.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        t.setGravity(Gravity.CENTER);
-        t.setFocusable(true);
-        t.setOnClickListener(click);
-        t.setOnFocusChangeListener((v, has) -> {
+        d.setColor(0x00000000);
+        d.setCornerRadius(p(15));
+        f.setBackground(d);
+        f.setPadding(p(3), p(3), p(3), p(3));
+        Drawable art = null;
+        if (pkg != null) {
+            try { art = getPackageManager().getApplicationBanner(pkg); } catch (Exception e) { art = null; }
+        }
+        View inner;
+        if (art != null) {
+            ImageView iv = new ImageView(this);
+            iv.setImageDrawable(art);
+            iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            inner = iv;
+        } else {
+            GradientDrawable g = new GradientDrawable();
+            g.setColor(color);
+            TextView t = new TextView(this);
+            t.setBackground(g);
+            t.setText(label);
+            t.setTextColor(textColor);
+            t.setTextSize(TypedValue.COMPLEX_UNIT_PX, p(16));
+            t.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            t.setGravity(Gravity.CENTER);
+            inner = t;
+        }
+        inner.setClipToOutline(true);
+        inner.setOutlineProvider(rounded12);
+        f.addView(inner, new FrameLayout.LayoutParams(MATCH, MATCH));
+        f.setFocusable(true);
+        f.setClickable(true);
+        f.setOnClickListener(click);
+        f.setOnFocusChangeListener((v, has) -> {
             float s = has ? 1.1f : 1f;
             v.animate().scaleX(s).scaleY(s).setDuration(160).start();
             v.setTranslationZ(has ? 10 : 0);
             d.setStroke(has ? p(3) : 0, Color.WHITE);
         });
-        return t;
+        return f;
     }
 
     private void launch(String pkg, String label) {
@@ -349,6 +409,69 @@ public class BentoActivity extends Activity {
         LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(w, h, weight);
         l.setMargins(p(margin), p(margin), p(margin), p(margin));
         return l;
+    }
+
+    // ---- custom views ----
+
+    private class SynthView extends View {
+        float phase;
+        private final Paint pt = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        SynthView() { super(BentoActivity.this); }
+
+        @Override protected void onDraw(Canvas c) {
+            int w = getWidth(), h = getHeight();
+            float hz = h * 0.56f;
+            pt.setStyle(Paint.Style.FILL);
+            pt.setShader(new LinearGradient(0, 0, 0, hz, 0xFF1A0B3D, 0xFFD6249F, Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, w, hz, pt);
+            pt.setShader(null);
+            pt.setColor(0xFF0B0620);
+            c.drawRect(0, hz, w, h, pt);
+            float cx = w / 2f, r = h * 0.34f;
+            c.save();
+            c.clipRect(0, 0, w, hz);
+            pt.setShader(new LinearGradient(0, hz - 2 * r, 0, hz, 0xFFFFE259, 0xFFFF2E93, Shader.TileMode.CLAMP));
+            c.drawCircle(cx, hz - r * 0.55f, r, pt);
+            pt.setShader(null);
+            pt.setColor(0xFF2A0F52);
+            for (int k = 0; k < 4; k++) {
+                float y = hz - r * 0.55f + r * (0.15f + 0.2f * k);
+                c.drawRect(0, y, w, y + r * 0.05f * (k + 1), pt);
+            }
+            c.restore();
+            pt.setStyle(Paint.Style.STROKE);
+            pt.setStrokeWidth(Math.max(1f, u * 0.8f));
+            pt.setColor(0xFFFF4FD8);
+            for (int i = 0; i < 7; i++) {
+                float t = (i + phase) / 7f;
+                float y = hz + (h - hz) * t * t;
+                c.drawLine(0, y, w, y, pt);
+            }
+            for (int k = -5; k <= 5; k++) c.drawLine(cx, hz, cx + k * w * 0.22f, h, pt);
+        }
+    }
+
+    private class WaveView extends View {
+        float phase;
+        private final Paint pt = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rf = new RectF();
+
+        WaveView() { super(BentoActivity.this); }
+
+        @Override protected void onDraw(Canvas c) {
+            int w = getWidth(), h = getHeight();
+            int n = 9;
+            float bw = w / (n * 2f - 1f);
+            pt.setColor(0xCCFFFFFF);
+            for (int i = 0; i < n; i++) {
+                float amp = 0.25f + 0.75f * (float) Math.abs(Math.sin(phase * 6.2832f + i * 0.8f));
+                float bh = h * amp;
+                float x = i * 2 * bw;
+                rf.set(x, (h - bh) / 2f, x + bw, (h + bh) / 2f);
+                c.drawRoundRect(rf, bw / 2f, bw / 2f, pt);
+            }
+        }
     }
 
     private class BgView extends View {

@@ -242,15 +242,15 @@ public class ScreensaverDream extends DreamService {
                     Subs.Item it = subs.get(i);
                     float y = ct + 0.06f * h + i * rowH;
                     t.setColor(dots[i % 4]);
-                    c.drawCircle(cl + 0.02f * w, y + 0.026f * h, 0.007f * h, t);
+                    Icons.draw(getContext(), c, it.name, cl + 0.012f * w, y + 0.006f * h, 0.054f * h);
                     t.setTextAlign(Paint.Align.LEFT);
                     t.setColor(Color.WHITE);
                     t.setTextSize(0.026f * h);
-                    c.drawText(it.name, cl + 0.032f * w, y + 0.034f * h, t);
+                    c.drawText(it.name, cl + 0.04f * w, y + 0.034f * h, t);
                     t.setTypeface(Typeface.DEFAULT);
                     t.setColor(0xB0FFFFFF);
                     t.setTextSize(0.016f * h);
-                    c.drawText("Auto-renews " + Subs.dateText(it), cl + 0.032f * w, y + 0.056f * h, t);
+                    c.drawText("Auto-renews " + Subs.dateText(it), cl + 0.04f * w, y + 0.056f * h, t);
                     t.setTypeface(Typeface.DEFAULT_BOLD);
                     t.setTextAlign(Paint.Align.RIGHT);
                     t.setColor(Color.WHITE);
@@ -262,6 +262,7 @@ public class ScreensaverDream extends DreamService {
             t.setTypeface(Typeface.DEFAULT);
             t.setColor(0xB0FFFFFF);
             t.setTextSize(0.022f * h);
+            c.drawText(G.worldLine(), w / 2f, 0.925f * h, t);
             c.drawText("Press OK to open", w / 2f, 0.965f * h, t);
         }
     }
