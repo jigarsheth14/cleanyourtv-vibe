@@ -52,7 +52,7 @@ public class BentoActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<View> glass = new ArrayList<>();
     private TextView greeting, time, ampm, date, temp, cond, swipeCount, mumbai, perth;
-    private LinearLayout posters;
+    private LinearLayout posters; private List<ForYou.Item> forYouAll = new ArrayList<>(); private int forYouOffset = 0; private int rotTick = 0;
     private View orb;
     private SynthView synth; private View homeCard;
     private WaveView wave;
@@ -68,7 +68,7 @@ public class BentoActivity extends Activity {
     private final Runnable clockTick = new Runnable() {
         @Override public void run() {
             updateClock();
-            handler.postDelayed(this, 10000);
+            rotTick++; if (rotTick % 4 == 0 && !forYouAll.isEmpty()) { forYouOffset += 4; showForYou(forYouAll); } if (rotTick % 12 == 0) refreshCricket(); handler.postDelayed(this, 10000);
         }
     };
 
@@ -100,7 +100,7 @@ public class BentoActivity extends Activity {
         sw = getResources().getDisplayMetrics().widthPixels;
         sh = getResources().getDisplayMetrics().heightPixels;
         u = sh / 540f;
-        scene = G.isDayNow() ? "clear_day" : "clear_night";
+        Backup.restore(this); scene = G.isDayNow() ? "clear_day" : "clear_night";
         rebuild();
 
         FrameLayout root = new FrameLayout(this);
@@ -121,6 +121,7 @@ public class BentoActivity extends Activity {
         LinearLayout row2 = row();
         right.addView(row2, lp(MATCH, 0, 1f, 0));
         row2.addView(arcadeCard(), lp(0, MATCH, 1f, 8));
+        row2.addView(cricketCard(), lp(0, MATCH, 1.2f, 8));
         row2.addView(jarvisCard(), lp(0, MATCH, 1f, 8));
 
         GlassCard dock = new GlassCard(false, LinearLayout.HORIZONTAL);
@@ -137,7 +138,7 @@ public class BentoActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        refreshForYou();
+        refreshForYou(); refreshCricket(); Backup.save(this);
         handler.post(clockTick);
         handler.post(weatherTick);
         handler.post(animTick); Photos.sync(this, () -> rebuild()); resetIdle(); if (dockRow != null && !dockSig.equals(Dock.raw(this))) buildDock();
@@ -145,7 +146,7 @@ public class BentoActivity extends Activity {
 
     @Override protected void onPause() {
         super.onPause();
-        handler.removeCallbacksAndMessages(null);
+        handler.removeCallbacksAndMessages(null); Backup.save(this);
     }
 
     @Override public void onBackPressed() { }
@@ -247,7 +248,7 @@ public class BentoActivity extends Activity {
         SharedPreferences s = G.sp(this);
         int left = 0;
         for (String[] t : Titles.ALL) if (s.getInt("r_" + t[0], 0) == 0) left++;
-        swipeCount.setText(left + " to rate");
+        int rated = 0; for (String key : s.getAll().keySet()) if (key.startsWith("r_")) rated++; swipeCount.setText(rated + " rated");
         if (!s.contains("fy_cache")) showForYou(fallbackItems());
         ForYou.load(this, items -> showForYou(items));
     }
@@ -281,7 +282,7 @@ public class BentoActivity extends Activity {
 
     private void showForYou(List<ForYou.Item> items) {
         posters.removeAllViews();
-        for (int i = 0; i < 4 && i < items.size(); i++) posters.addView(forYouTile(items.get(i)), lp(0, MATCH, 1f, 4));
+        forYouAll = items; for (int i = 0; i < 4 && i < items.size(); i++) posters.addView(forYouTile(items.get((forYouOffset + i) % items.size())), lp(0, MATCH, 1f, 4));
     }
 
     // ---- cards ----
@@ -325,8 +326,8 @@ public class BentoActivity extends Activity {
     }
 
     private View forYouCard() {
-        GlassCard c = new GlassCard(false, LinearLayout.VERTICAL);
-        c.addView(G.tv(this, "For you  \u00B7  new on Netflix, Prime and more", p(14), 0xCCFFFFFF, false));
+        GlassCard c = new GlassCard(true, LinearLayout.VERTICAL); c.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS); c.setOnClickListener(v -> startActivity(new Intent(this, ForYouActivity.class)));
+        c.addView(G.tv(this, "For you  \u00B7  OK to see all", p(14), 0xCCFFFFFF, false));
         posters = row();
         LinearLayout.LayoutParams pl = lp(MATCH, 0, 1f, 0);
         pl.topMargin = p(8);
@@ -442,6 +443,40 @@ public class BentoActivity extends Activity {
         c.addView(synth, lp(0, MATCH, 1.1f, 0));
         c.setOnClickListener(v -> startActivity(new Intent(this, GamesActivity.class)));
         return c;
+    }
+
+    private TextView cricketLine1, cricketLine2, cricketLine3;
+
+    private View cricketCard() {
+        GlassCard c = new GlassCard(true, LinearLayout.VERTICAL);
+        c.setGravity(Gravity.CENTER_VERTICAL);
+        c.addView(G.tv(this, "CRICKET  \u00B7  INDIA and IPL", p(11), 0xCCFFFFFF, true));
+        cricketLine1 = G.tv(this, "Loading scores...", p(21), Color.WHITE, true);
+        cricketLine2 = G.tv(this, "", p(15), 0xDDFFFFFF, false);
+        cricketLine3 = G.tv(this, "", p(13), 0xAAFFFFFF, false);
+        for (TextView t : new TextView[]{cricketLine1, cricketLine2, cricketLine3}) {
+            t.setSingleLine();
+            t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            c.addView(t);
+        }
+        c.setOnClickListener(v -> startActivity(new Intent(this, CricketActivity.class)));
+        return c;
+    }
+
+    private void refreshCricket() {
+        Cricket.load(this, list -> {
+            if (cricketLine1 == null) return;
+            Cricket.Match m = Cricket.top(list);
+            if (m == null) {
+                cricketLine1.setText("No match today");
+                cricketLine2.setText("India and IPL");
+                cricketLine3.setText("OK for the full page");
+                return;
+            }
+            cricketLine1.setText((m.live ? "LIVE  " : "") + m.teams);
+            cricketLine2.setText(m.line.isEmpty() ? m.series : m.line);
+            cricketLine3.setText(m.status);
+        });
     }
 
     private View jarvisCard() {

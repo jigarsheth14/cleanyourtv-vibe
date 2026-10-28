@@ -1,10 +1,12 @@
 package com.gathin.tvhome;
 
 import android.app.Activity;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -15,12 +17,20 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
+import java.util.Set;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
+/** Endless rating deck: your own list, new releases, then well-rated shows pulled from TVmaze. */
 public class SwipeActivity extends Activity {
-    private final List<String[]> queue = new ArrayList<>();
+    private final List<ForYou.Item> queue = new ArrayList<>();
+    private final Set<String> seen = new HashSet<>();
     private int pos;
-    private boolean busy;
+    private boolean busy, loading;
     private float u;
     private FrameLayout card;
     private ImageView poster;
@@ -33,9 +43,7 @@ public class SwipeActivity extends Activity {
         super.onCreate(b);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         u = G.u(this);
-        for (String[] t : Titles.ALL) if (G.sp(this).getInt("r_" + t[0], 0) == 0) queue.add(t);
-        FrameLayout root = new FrameLayout(this);
-        root.setBackground(G.bg());
+        FrameLayout root = Look.page(this);
         count = G.tv(this, "", p(18), 0xCCFFFFFF, false);
         FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         cl.topMargin = p(22);
@@ -55,7 +63,7 @@ public class SwipeActivity extends Activity {
         label.setPadding(p(18), p(40), p(18), p(18));
         label.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x00000000, 0xDD000000}));
         title = G.tv(this, "", p(28), Color.WHITE, true);
-        genre = G.tv(this, "", p(16), 0xDDFFFFFF, false);
+        genre = G.tv(this, "", p(15), 0xDDFFFFFF, false);
         label.addView(title);
         label.addView(genre);
         card.addView(label, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
@@ -71,7 +79,30 @@ public class SwipeActivity extends Activity {
         hl.bottomMargin = p(18);
         root.addView(hint, hl);
         setContentView(root);
+
+        List<ForYou.Item> seed = new ArrayList<>();
+        for (String[] t : Titles.ALL) {
+            ForYou.Item it = new ForYou.Item();
+            it.title = t[0];
+            it.genres.add(t[1].equals("Sci-Fi") ? "Science-Fiction" : t[1]);
+            seed.add(it);
+        }
+        seed.addAll(ForYou.cachedRanked(this));
+        Collections.shuffle(seed);
+        for (ForYou.Item it : seed) add(it);
         show();
+        if (queue.size() < 8) loadMore();
+    }
+
+    private void add(ForYou.Item it) {
+        if (G.sp(this).getInt("r_" + it.title, 0) != 0) return;
+        if (seen.add(it.title)) queue.add(it);
+    }
+
+    private int rated() {
+        int n = 0;
+        for (String k : G.sp(this).getAll().keySet()) if (k.startsWith("r_")) n++;
+        return n;
     }
 
     private void setColor(String s) {
@@ -80,33 +111,98 @@ public class SwipeActivity extends Activity {
                 Color.HSVToColor(new float[]{hue, 0.55f, 0.75f}), Color.HSVToColor(new float[]{hue, 0.65f, 0.35f})}));
     }
 
+    private String describe(ForYou.Item it) {
+        StringBuilder sb = new StringBuilder();
+        for (String g : it.genres) {
+            if (sb.length() > 0) sb.append("  \u00B7  ");
+            sb.append(g);
+        }
+        if (it.rating > 0) sb.append(sb.length() > 0 ? "  \u00B7  " : "").append(String.format(java.util.Locale.ENGLISH, "%.1f", it.rating));
+        if (it.platform != null && !it.platform.isEmpty()) sb.append(sb.length() > 0 ? "  \u00B7  " : "").append(it.platform);
+        return sb.toString();
+    }
+
     private void show() {
-        count.setText(Math.max(0, queue.size() - pos) + " left to rate");
+        count.setText(rated() + " rated   -   the deck never runs out");
         stamp.setVisibility(View.GONE);
         poster.setVisibility(View.GONE);
         if (pos >= queue.size()) {
             shown = "";
-            title.setText("All rated!");
-            genre.setText("See For you on Home");
-            setColor("done");
+            title.setText("Finding more...");
+            genre.setText("If this stays, check the Wi-Fi and press OK");
+            setColor("more");
+            loadMore();
             return;
         }
-        final String[] t = queue.get(pos);
-        shown = t[0];
-        title.setText(t[0]);
-        genre.setText(t[1]);
-        setColor(t[0]);
-        Posters.load(this, t[0], bm -> {
-            if (shown.equals(t[0])) {
+        final ForYou.Item it = queue.get(pos);
+        shown = it.title;
+        title.setText(it.title);
+        genre.setText(describe(it));
+        setColor(it.title);
+        Posters.Cb cb = bm -> {
+            if (shown.equals(it.title)) {
                 poster.setImageBitmap(bm);
                 poster.setVisibility(View.VISIBLE);
             }
-        });
+        };
+        if (it.image != null && !it.image.isEmpty()) Posters.loadUrl(this, it.image, cb); else Posters.load(this, it.title, cb);
+        if (queue.size() - pos < 6) loadMore();
+    }
+
+    private void loadMore() {
+        if (loading) return;
+        loading = true;
+        new Thread(() -> {
+            final List<ForYou.Item> add = new ArrayList<>();
+            Random r = new Random();
+            for (int tries = 0; tries < 5 && add.size() < 10; tries++) {
+                try {
+                    JSONArray a = new JSONArray(ForYou.get("https://api.tvmaze.com/shows?page=" + r.nextInt(240)));
+                    for (int k = 0; k < a.length(); k++) {
+                        JSONObject s = a.getJSONObject(k);
+                        JSONObject img = s.optJSONObject("image");
+                        JSONObject rt = s.optJSONObject("rating");
+                        if (img == null || rt == null || rt.isNull("average")) continue;
+                        double avg = rt.optDouble("average", 0);
+                        if (avg < 7.3) continue;
+                        String prem = s.optString("premiered", "");
+                        if (prem.length() < 4 || prem.equals("null") || prem.compareTo("2005") < 0) continue;
+                        String lang = s.optString("language", "");
+                        if (!(lang.equals("English") || lang.equals("Hindi") || lang.equals("Tamil") || lang.equals("Telugu")
+                                || lang.equals("Malayalam") || lang.equals("Korean"))) continue;
+                        String image = img.optString("medium", "");
+                        String name = s.optString("name", "");
+                        if (image.isEmpty() || name.isEmpty()) continue;
+                        ForYou.Item it = new ForYou.Item();
+                        it.title = name;
+                        it.image = image;
+                        it.rating = avg;
+                        JSONObject wc = s.optJSONObject("webChannel");
+                        JSONObject nw = s.optJSONObject("network");
+                        if (wc != null) it.platform = wc.optString("name", "");
+                        else if (nw != null) it.platform = nw.optString("name", "");
+                        JSONArray g = s.optJSONArray("genres");
+                        if (g != null) for (int j = 0; j < g.length(); j++) it.genres.add(g.getString(j));
+                        add.add(it);
+                    }
+                } catch (Exception e) {
+                    // that page failed; try another
+                }
+            }
+            Collections.shuffle(add);
+            runOnUiThread(() -> {
+                loading = false;
+                for (ForYou.Item it : add) add(it);
+                if (shown.isEmpty() && pos < queue.size()) show();
+            });
+        }).start();
     }
 
     private void rate(final int v) {
         if (pos >= queue.size()) return;
-        G.sp(this).edit().putInt("r_" + queue.get(pos)[0], v).apply();
+        ForYou.Item it = queue.get(pos);
+        SharedPreferences.Editor e = G.sp(this).edit();
+        e.putInt("r_" + it.title, v).putString("g_" + it.title, TextUtils.join(",", it.genres)).apply();
         busy = true;
         stamp.setText(v > 0 ? "LIKE" : "NOPE");
         stamp.setTextColor(v > 0 ? 0xFF4CE08A : 0xFFFF5A6E);
@@ -127,7 +223,7 @@ public class SwipeActivity extends Activity {
         if (k == KeyEvent.KEYCODE_DPAD_LEFT) { rate(-1); return true; }
         if (k == KeyEvent.KEYCODE_DPAD_RIGHT) { rate(1); return true; }
         if (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER) {
-            if (pos < queue.size()) { pos++; show(); }
+            if (pos < queue.size()) { pos++; show(); } else loadMore();
             return true;
         }
         return super.onKeyDown(k, e);

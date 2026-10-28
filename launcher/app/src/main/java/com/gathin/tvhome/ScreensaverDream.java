@@ -84,7 +84,7 @@ public class ScreensaverDream extends DreamService {
 
         void start() {
             stop();
-            subs = Subs.load(getContext());
+            subs = Subs.setOnly(Subs.load(getContext()));
             Collections.sort(subs, (a, b) -> Subs.daysLeft(a) - Subs.daysLeft(b));
             Wx.cached(getContext(), this::weather);
             Wx.fetch(getContext(), this::weather);
@@ -218,8 +218,9 @@ public class ScreensaverDream extends DreamService {
             t.setTextSize(0.30f * h);
             c.drawText(new SimpleDateFormat("h:mm", Locale.ENGLISH).format(now), w / 2f, 0.48f * h, t);
             String wv = temp == Integer.MIN_VALUE ? "--" : temp + "\u00B0 " + Wx.describe(code);
-            chip(c, w / 2f - 0.1f * w, 0.585f * h, 0.17f * w, 0.085f * h, city.isEmpty() ? "WEATHER" : city.toUpperCase(Locale.ENGLISH), wv);
-            chip(c, w / 2f + 0.1f * w, 0.585f * h, 0.17f * w, 0.085f * h, "SUNRISE", sunrise);
+            chip(c, w / 2f - 0.19f * w, 0.585f * h, 0.17f * w, 0.085f * h, city.isEmpty() ? "WEATHER" : city.toUpperCase(Locale.ENGLISH), wv);
+            chip(c, w / 2f, 0.585f * h, 0.17f * w, 0.085f * h, "SUNRISE", sunrise);
+            chip(c, w / 2f + 0.19f * w, 0.585f * h, 0.17f * w, 0.085f * h, "SUNSET", G.sp(getContext()).getString("wx_ss", "--"));
 
             if (!subs.isEmpty()) {
                 int n = Math.min(4, subs.size());
