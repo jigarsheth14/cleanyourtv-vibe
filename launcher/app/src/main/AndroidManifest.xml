@@ -267,6 +267,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </service>
+        <activity android:name=".AllAppsActivity" android:exported="false" android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
         <!-- BENTO-END -->
     </application>
 </manifest>

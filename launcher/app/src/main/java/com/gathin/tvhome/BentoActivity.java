@@ -126,15 +126,8 @@ public class BentoActivity extends Activity {
         GlassCard dock = new GlassCard(false, LinearLayout.HORIZONTAL);
         dock.setGravity(Gravity.CENTER_VERTICAL);
         page.addView(dock, lp(MATCH, 0, 0.95f, 8));
-        View first = appTile("YouTube", "com.google.android.youtube.tv", 0xFFFFFFFF, 0xFFD32F2F, v -> launch("com.google.android.youtube.tv", "YouTube"));
-        dock.addView(first, lp(0, MATCH, 1f, 4));
-        dock.addView(appTile("NETFLIX", "com.netflix.ninja", 0xFFFFFFFF, 0xFFE50914, v -> launch("com.netflix.ninja", "Netflix")), lp(0, MATCH, 1f, 4));
-        dock.addView(appTile("JioHotstar", "in.startv.hotstar", 0xFF6C3DF4, Color.WHITE, v -> launch("in.startv.hotstar", "JioHotstar")), lp(0, MATCH, 1f, 4));
-        dock.addView(appTile("prime video", "com.amazon.amazonvideo.livingroom", 0xFF1A98FF, Color.WHITE, v -> launch("com.amazon.amazonvideo.livingroom", "Prime Video")), lp(0, MATCH, 1f, 4));
-        dock.addView(appTile("SonyLIV", "com.sonyliv", 0xFF111111, Color.WHITE, v -> launch("com.sonyliv", "SonyLIV")), lp(0, MATCH, 1f, 4));
-        dock.addView(appTile("ZEE5", "com.graymatrix.did", 0xFF2A1F4D, Color.WHITE, v -> launch("com.graymatrix.did", "ZEE5")), lp(0, MATCH, 1f, 4));
-        dock.addView(appTile("Renewals", null, 0x55FFFFFF, Color.WHITE, v -> startActivity(new Intent(this, SubsActivity.class))), lp(0, MATCH, 1f, 4));
-        dock.addView(appTile("All apps", null, 0x55FFFFFF, Color.WHITE, v -> startActivity(new Intent(this, MainActivity.class))), lp(0, MATCH, 1f, 4));
+        dockRow = dock;
+        View first = buildDock();
 
         setContentView(root);
         updateClock();
@@ -147,7 +140,7 @@ public class BentoActivity extends Activity {
         refreshForYou();
         handler.post(clockTick);
         handler.post(weatherTick);
-        handler.post(animTick);
+        handler.post(animTick); resetIdle(); if (dockRow != null && !dockSig.equals(Dock.raw(this))) buildDock();
     }
 
     @Override protected void onPause() {
@@ -156,6 +149,71 @@ public class BentoActivity extends Activity {
     }
 
     @Override public void onBackPressed() { }
+
+    private LinearLayout dockRow;
+    private String dockSig = "";
+    private final Runnable idleRun = () -> startSaver();
+
+    @Override public void onUserInteraction() { resetIdle(); }
+
+    private void resetIdle() {
+        handler.removeCallbacks(idleRun);
+        handler.postDelayed(idleRun, 100000L);
+    }
+
+    private void startSaver() {
+        try {
+            startActivity(new Intent().setComponent(new android.content.ComponentName("com.android.systemui", "com.android.systemui.Somnambulator"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            // the TV's own screensaver timer still applies
+        }
+    }
+
+    @Override public boolean onKeyDown(int k, android.view.KeyEvent e) {
+        if (k == android.view.KeyEvent.KEYCODE_ALL_APPS || k == android.view.KeyEvent.KEYCODE_MENU || k == android.view.KeyEvent.KEYCODE_GUIDE) {
+            startActivity(new Intent(this, AllAppsActivity.class));
+            return true;
+        }
+        return super.onKeyDown(k, e);
+    }
+
+    private View buildDock() {
+        dockRow.removeAllViews();
+        dockSig = Dock.raw(this);
+        View first = null;
+        PackageManager pm = getPackageManager();
+        for (final String pkg : Dock.load(this)) {
+            if (pm.getLaunchIntentForPackage(pkg) == null && pm.getLeanbackLaunchIntentForPackage(pkg) == null) continue;
+            final String label = Dock.label(this, pkg);
+            View t = appTile(label, pkg, 0xFF2A1F4D, Color.WHITE, v -> launch(pkg, label));
+            t.setLongClickable(true);
+            t.setOnLongClickListener(v -> { editDock(pkg); return true; });
+            dockRow.addView(t, lp(0, MATCH, 1f, 4));
+            if (first == null) first = t;
+        }
+        dockRow.addView(appTile("Renewals", null, 0x55FFFFFF, Color.WHITE, v -> startActivity(new Intent(this, SubsActivity.class))), lp(0, MATCH, 1f, 4));
+        View all = appTile("All apps", null, 0x55FFFFFF, Color.WHITE, v -> startActivity(new Intent(this, AllAppsActivity.class)));
+        dockRow.addView(all, lp(0, MATCH, 1f, 4));
+        return first != null ? first : all;
+    }
+
+    private void editDock(final String pkg) {
+        final List<String> l = Dock.load(this);
+        final int i = l.indexOf(pkg);
+        if (i < 0) return;
+        new android.app.AlertDialog.Builder(this).setTitle(Dock.label(this, pkg))
+            .setItems(new String[]{"Move left", "Move right", "Move to the very front", "Remove from Home"}, (dlg, which) -> {
+                l.remove(i);
+                int ni = i;
+                if (which == 0) { ni = Math.max(0, i - 1); l.add(ni, pkg); }
+                else if (which == 1) { ni = Math.min(l.size(), i + 1); l.add(ni, pkg); }
+                else if (which == 2) { ni = 0; l.add(0, pkg); }
+                Dock.save(this, l);
+                buildDock();
+                if (dockRow.getChildCount() > 0) dockRow.getChildAt(Math.min(ni, dockRow.getChildCount() - 1)).requestFocus();
+            }).show();
+    }
 
     private void rebuild() {
         sharp = Bg.sharp(scene, 480, 270);
