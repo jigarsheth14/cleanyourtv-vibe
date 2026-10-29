@@ -90,7 +90,7 @@ public class BentoActivity extends Activity {
                 orb.setScaleX(s);
                 orb.setScaleY(s);
             }
-            handler.postDelayed(this, 60);
+            handler.postDelayed(this, 110);
         }
     };
 
@@ -138,10 +138,10 @@ public class BentoActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        refreshForYou(); refreshCricket(); Backup.save(this);
+        refreshForYou(); handler.postDelayed(() -> refreshCricket(), 10000); handler.postDelayed(() -> Backup.save(this), 3000);
         handler.post(clockTick);
-        handler.post(weatherTick);
-        handler.post(animTick); Photos.sync(this, () -> rebuild()); resetIdle(); if (dockRow != null && !dockSig.equals(Dock.raw(this))) buildDock();
+        handler.postDelayed(weatherTick, 4000);
+        handler.post(animTick); handler.postDelayed(() -> Photos.sync(this, () -> rebuild()), 20000); resetIdle(); if (dockRow != null && !dockSig.equals(Dock.raw(this))) buildDock();
     }
 
     @Override protected void onPause() {
@@ -216,10 +216,32 @@ public class BentoActivity extends Activity {
             }).show();
     }
 
+    private int buildGen = 0;
+
     private void rebuild() {
-        Bitmap ph = Photos.pick(this); sharp = ph != null ? Photos.compose(ph, scene, 1280, 720) : Bg.sharp(scene, 480, 270);
-        blurred = Bg.blur(sharp);
-        for (View v : glass) v.invalidate();
+        if (sharp == null) {
+            sharp = Bg.sharp(scene, 480, 270);
+            blurred = Bg.blur(sharp);
+        }
+        final int gen = ++buildGen;
+        final String sc = scene;
+        new Thread(() -> {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
+            try {
+                Bitmap ph = Photos.pick(BentoActivity.this);
+                final Bitmap s = ph != null ? Photos.compose(ph, sc, 1280, 720) : Bg.sharp(sc, 480, 270);
+                Bitmap small = Bitmap.createScaledBitmap(s, 480, 270, true);
+                final Bitmap bl = Bg.blur(small);
+                runOnUiThread(() -> {
+                    if (gen != buildGen || isDestroyed()) return;
+                    sharp = s;
+                    blurred = bl;
+                    for (View v : glass) v.invalidate();
+                });
+            } catch (Throwable t) {
+                // keep the current background
+            }
+        }).start();
     }
 
     private void applyWeather(int t, int code, boolean day, String city) {
@@ -246,11 +268,12 @@ public class BentoActivity extends Activity {
 
     private void refreshForYou() {
         SharedPreferences s = G.sp(this);
-        int left = 0;
-        for (String[] t : Titles.ALL) if (s.getInt("r_" + t[0], 0) == 0) left++;
-        int rated = 0; for (String key : s.getAll().keySet()) if (key.startsWith("r_")) rated++; swipeCount.setText(rated + " rated");
-        if (!s.contains("fy_cache")) showForYou(fallbackItems());
-        ForYou.load(this, items -> showForYou(items));
+        int rated = 0;
+        for (String key : s.getAll().keySet()) if (key.startsWith("r_")) rated++;
+        swipeCount.setText(rated + " rated");
+        List<ForYou.Item> cached = ForYou.cachedRanked(this);
+        showForYou(cached.isEmpty() ? fallbackItems() : cached);
+        handler.postDelayed(() -> ForYou.load(this, items -> showForYou(items)), 8000);
     }
 
     private List<ForYou.Item> fallbackItems() {

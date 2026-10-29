@@ -4,34 +4,40 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import org.json.JSONObject;
 
 /** Saves dock order, ratings and renewals to a file you can copy to the PC, and loads one back. */
 final class Backup {
-    static void save(Context c) {
-        try {
-            File d = c.getExternalFilesDir(null);
-            if (d == null) return;
-            JSONObject o = new JSONObject();
-            for (Map.Entry<String, ?> e : G.sp(c).getAll().entrySet()) {
-                String k = e.getKey();
-                if (k.startsWith("fy_") || k.startsWith("wx_") || k.startsWith("cr_")) continue;
-                Object v = e.getValue();
-                JSONObject t = new JSONObject();
-                if (v instanceof Integer) { t.put("t", "i"); t.put("v", ((Integer) v).intValue()); }
-                else if (v instanceof Long) { t.put("t", "l"); t.put("v", ((Long) v).longValue()); }
-                else if (v instanceof Boolean) { t.put("t", "b"); t.put("v", ((Boolean) v).booleanValue()); }
-                else if (v instanceof Float) { t.put("t", "f"); t.put("v", ((Float) v).doubleValue()); }
-                else if (v instanceof String) { t.put("t", "s"); t.put("v", v); }
-                else continue;
-                o.put(k, t);
+    static void save(final Context c) {
+        final Context app = c.getApplicationContext();
+        final Map<String, Object> snap = new HashMap<>(G.sp(app).getAll());
+        new Thread(() -> {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
+            try {
+                File d = app.getExternalFilesDir(null);
+                if (d == null) return;
+                JSONObject o = new JSONObject();
+                for (Map.Entry<String, Object> e : snap.entrySet()) {
+                    String k = e.getKey();
+                    if (k.startsWith("fy_") || k.startsWith("wx_") || k.startsWith("cr_")) continue;
+                    Object v = e.getValue();
+                    JSONObject t = new JSONObject();
+                    if (v instanceof Integer) { t.put("t", "i"); t.put("v", ((Integer) v).intValue()); }
+                    else if (v instanceof Long) { t.put("t", "l"); t.put("v", ((Long) v).longValue()); }
+                    else if (v instanceof Boolean) { t.put("t", "b"); t.put("v", ((Boolean) v).booleanValue()); }
+                    else if (v instanceof Float) { t.put("t", "f"); t.put("v", ((Float) v).doubleValue()); }
+                    else if (v instanceof String) { t.put("t", "s"); t.put("v", v); }
+                    else continue;
+                    o.put(k, t);
+                }
+                Files.write(new File(d, "bento-backup.json").toPath(), o.toString().getBytes("UTF-8"));
+            } catch (Exception e) {
+                // a failed backup must never break the home screen
             }
-            Files.write(new File(d, "bento-backup.json").toPath(), o.toString().getBytes("UTF-8"));
-        } catch (Exception e) {
-            // a failed backup must never break the home screen
-        }
+        }).start();
     }
 
     static boolean restore(Context c) {
