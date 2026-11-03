@@ -59,14 +59,14 @@ final class Cricket {
         List<Match> all = new ArrayList<>();
         walk(new JSONObject(raw), "", all);
         List<Match> keep = new ArrayList<>();
-        for (Match m : all) if (m.india || m.ipl) keep.add(m);
+        boolean fb = false; for (Match m : all) if (m.india || m.ipl) keep.add(m); if (keep.isEmpty()) { fb = true; for (Match m : all) if (m.live || m.upcoming) keep.add(m); }
         Collections.sort(keep, (a, b) -> {
             int ra = a.live ? 0 : a.upcoming ? 1 : 2;
             int rb = b.live ? 0 : b.upcoming ? 1 : 2;
             if (ra != rb) return ra - rb;
             return ra == 1 ? Long.compare(a.time, b.time) : Long.compare(b.time, a.time);
         });
-        return keep;
+        if (fb && keep.size() > 3) return new ArrayList<>(keep.subList(0, 3)); return keep;
     }
 
     private static void walk(Object o, String series, List<Match> out) {

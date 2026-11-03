@@ -47,10 +47,10 @@ final class Photos {
         return fs;
     }
 
-    static Bitmap pick(Context ctx) {
+    static int idx(int len, boolean saver) { if (len < 2) return 0; int h = new java.util.Random(slot() * 2654435761L).nextInt(len); if (!saver) return h; return (h + 1 + new java.util.Random().nextInt(len - 1)) % len; } static Bitmap pickSaver(Context ctx) { File[] fs = files(ctx); if (fs.length == 0) return null; File f = fs[idx(fs.length, true)]; try { BitmapFactory.Options o = new BitmapFactory.Options(); o.inPreferredConfig = Bitmap.Config.RGB_565; return BitmapFactory.decodeFile(f.getPath(), o); } catch (Throwable e) { return null; } } static Bitmap pick(Context ctx) {
         File[] fs = files(ctx);
         if (fs.length == 0) return null;
-        File f = fs[slot() % fs.length];
+        File f = fs[idx(fs.length, false)];
         if (f.getPath().equals(cachedPath) && cachedBmp != null) return cachedBmp;
         try {
             BitmapFactory.Options o = new BitmapFactory.Options();
